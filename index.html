@@ -2415,7 +2415,10 @@ function csvCell(v){
   }
   return '"' + s.replaceAll('"','""') + '"';
 }
-function exportCSV(){
+function activePageName(){
+  return document.querySelector('.tab.active')?.dataset.page || 'validacao';
+}
+function exportValidationCSV(){
  const rows=[
   ['Emissor','CNPJ Emissor','Cliente','Tipo','Número','Emissão','Valor','Tomador','CNPJ Tomador','Cód. Serviço','Cód. Tributação','Status','Erro identificado','XML'],
   ...filtered().map(r=>[
@@ -2432,16 +2435,48 @@ function exportCSV(){
     r.codigoTributacao || '--',
     r.status,
     textoObservacao(r),
-    r.arquivo
+    r.xmlCode || r.codigoXml || r.arquivo || ''
   ])
  ];
+ downloadCsvRows(rows, 'validacao_xml_elologistica.csv');
+}
+function exportConciliationCSV(){
+  const displayColumns = PAYMENT_DISPLAY_COLUMNS || [];
+  const rows = filteredConciliationRows();
+  const headers = [...displayColumns.map(c=>c.title), 'STATUS', 'DETALHES', 'XMLS LOCALIZADOS', 'VALOR NF XML', 'DIFERENÇA XML X VALOR A PAGAR'];
+  const csvRows = [headers];
+  rows.forEach(row=>{
+    const c = buildPaymentMatches(row);
+    csvRows.push([
+      ...displayColumns.map(col=>{
+        if(col.title === 'NÚMERO CNPJ') return excelText(paymentDisplayValue(row, col));
+        if(col.title === 'PIX') return excelText(paymentDisplayValue(row, col));
+        if(col.title === 'Nº NOTA') return excelText(paymentDisplayValue(row, col));
+        return paymentDisplayValue(row, col);
+      }),
+      c.status || '',
+      c.detail || '',
+      c.xmlArquivos || '',
+      c.matches.length ? moneyBR(c.faturado) : '',
+      c.matches.length ? moneyBR(c.diff) : ''
+    ]);
+  });
+  downloadCsvRows(csvRows, 'conciliacao_pagamentos_elologistica.csv');
+}
+function downloadCsvRows(rows, filename){
  const csv='\uFEFF' + rows.map(r=>r.map(csvCell).join(';')).join('\n');
  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
  const a=document.createElement('a');
  a.href=URL.createObjectURL(blob);
- a.download='validacao_xml_elologistica.csv';
+ a.download=filename;
  a.click();
  URL.revokeObjectURL(a.href);
+}
+function exportCSV(){
+  const page = activePageName();
+  if(page === 'conciliacao') return exportConciliationCSV();
+  if(page === 'validacao') return exportValidationCSV();
+  alert('Exportação CSV disponível nas abas Validação e Conciliação de Pagamentos.');
 }
 
 function updateTopUploadButton(activePage){
